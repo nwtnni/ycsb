@@ -26,7 +26,7 @@ impl Number {
         Self::Uniform(rand::distr::Uniform::new(0, count).unwrap())
     }
 
-    #[inline]
+    // https://github.com/brianfrankcooper/YCSB/blob/9858c4dab6dc45991871c9f137bd011752d9c21b/core/src/main/java/site/ycsb/generator/ZipfianGenerator.java#L132-L148
     pub fn zipfian(count: u64) -> Self {
         const ZIPFIAN_CONSTANT: f64 = 0.99;
         let theta = ZIPFIAN_CONSTANT;
@@ -58,6 +58,7 @@ impl Generator for Number {
         match self {
             Number::Constant(value) => *value,
             Number::Uniform(uniform) => uniform.sample(rng),
+            // https://github.com/brianfrankcooper/YCSB/blob/9858c4dab6dc45991871c9f137bd011752d9c21b/core/src/main/java/site/ycsb/generator/ZipfianGenerator.java#L250-L263
             Number::Zipfian {
                 count,
                 cutoff_1,
