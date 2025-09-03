@@ -124,14 +124,6 @@ impl Workload {
     }
 
     pub fn loader(&self, thread_count: usize, thread_id: usize) -> Loader {
-        assert_eq!(
-            self.record_count % thread_count,
-            0,
-            "Record count {} must be divisible by thread total {}",
-            self.record_count,
-            thread_count
-        );
-
         let insert_count = (self.record_count / thread_count) as u64;
         let insert_start = insert_count * thread_id as u64;
         Loader {
