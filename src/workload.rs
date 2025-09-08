@@ -28,6 +28,11 @@ pub const D: Workload = Workload {
 };
 
 /// https://github.com/brianfrankcooper/YCSB/blob/19e885f7cb780fdded0547853f7810a150554caf/core/src/main/java/site/ycsb/workloads/CoreWorkload.java#L28-L67
+#[cfg_attr(
+    feature = "cartesian",
+    derive(cartesian::Cartesian),
+    cartesian(derive(Default))
+)]
 #[derive(Clone, Debug)]
 #[cfg_attr(
     feature = "serde",

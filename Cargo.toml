@@ -5,9 +5,11 @@ edition = "2024"
 
 [features]
 default = []
+cartesian = ["dep:cartesian"]
 serde = ["dep:serde"]
 
 [dependencies]
+cartesian = { git = "https://github.com/nwtnni/cartesian.git", optional = true }
 serde = { version = "1.0", features = ["derive"], optional = true }
 rand = "0.9"
 rapidhash = "1.4"
