@@ -5,92 +5,12 @@ use core::hash::Hasher as _;
 use core::sync::atomic::AtomicU64;
 use core::sync::atomic::Ordering;
 
-use bon::Builder;
 use generator::Generator as _;
 use rand::Rng;
 use rapidhash::RapidHasher;
 
 pub mod workload;
-
-#[derive(Builder, Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-#[builder(state_mod(vis = "pub"), derive(Clone, Debug))]
-pub struct Workload {
-    #[builder(default = default::insert_order())]
-    #[cfg_attr(
-        feature = "serde",
-        serde(alias = "insertorder", default = "default::insert_order")
-    )]
-    pub insert_order: InsertOrder,
-
-    #[builder(default = default::field_count())]
-    #[cfg_attr(
-        feature = "serde",
-        serde(alias = "fieldcount", default = "default::field_count")
-    )]
-    pub field_count: usize,
-
-    #[builder(default = default::record_count())]
-    #[cfg_attr(
-        feature = "serde",
-        serde(alias = "recordcount", default = "default::record_count")
-    )]
-    pub record_count: usize,
-
-    #[builder(default = default::operation_count())]
-    #[cfg_attr(
-        feature = "serde",
-        serde(alias = "operationcount", default = "default::operation_count")
-    )]
-    pub operation_count: usize,
-
-    #[builder(default = default::read_all_fields())]
-    #[cfg_attr(
-        feature = "serde",
-        serde(alias = "readallfields", default = "default::read_all_fields")
-    )]
-    pub read_all_fields: bool,
-
-    #[builder(default = default::read_proportion())]
-    #[cfg_attr(
-        feature = "serde",
-        serde(alias = "readproportion", default = "default::read_proportion")
-    )]
-    pub read_proportion: f32,
-
-    #[builder(default = default::update_proportion())]
-    #[cfg_attr(
-        feature = "serde",
-        serde(alias = "updateproportion", default = "default::update_proportion")
-    )]
-    pub update_proportion: f32,
-
-    #[builder(default)]
-    #[cfg_attr(feature = "serde", serde(alias = "scanproportion", default))]
-    pub scan_proportion: f32,
-
-    #[builder(default)]
-    #[cfg_attr(feature = "serde", serde(alias = "insertproportion", default))]
-    pub insert_proportion: f32,
-
-    #[builder(default)]
-    #[cfg_attr(feature = "serde", serde(alias = "readmodifywriteproportion", default))]
-    pub read_modify_write_proportion: f32,
-
-    #[builder(default)]
-    #[cfg_attr(feature = "serde", serde(alias = "deleteproportion", default))]
-    pub delete_proportion: f32,
-
-    #[builder(default = default::request_distribution())]
-    #[cfg_attr(
-        feature = "serde",
-        serde(
-            alias = "requestdistribution",
-            default = "default::request_distribution"
-        )
-    )]
-    pub request_distribution: RequestDistribution,
-}
+pub use workload::Workload;
 
 pub struct Loader {
     insert_order: InsertOrder,
@@ -288,21 +208,6 @@ pub enum Operation {
     Insert,
     ReadModifyWrite,
     Delete,
-}
-
-#[rustfmt::skip]
-mod default {
-    use crate::InsertOrder;
-    use crate::RequestDistribution;
-
-    pub(super) fn insert_order() -> InsertOrder { InsertOrder::Hashed }
-    pub(super) fn record_count() -> usize { 1_000 }
-    pub(super) fn operation_count() -> usize { 1_000 }
-    pub(super) fn field_count() -> usize { 10 }
-    pub(super) fn read_all_fields() -> bool { true }
-    pub(super) fn read_proportion() -> f32 { 0.95 }
-    pub(super) fn update_proportion() -> f32 { 0.05 }
-    pub(super) fn request_distribution() -> RequestDistribution { RequestDistribution::Zipfian }
 }
 
 #[derive(Copy, Clone, Debug)]
