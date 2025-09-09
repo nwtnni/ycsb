@@ -241,10 +241,10 @@ impl Default for Acknowledged {
 }
 
 impl Acknowledged {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             hint: AtomicU64::new(0),
-            inner: std::array::from_fn(|_| AtomicU64::new(0)),
+            inner: [const { AtomicU64::new(0) }; 1 << 20],
         }
     }
 
