@@ -31,7 +31,7 @@ pub const D: Workload = Workload {
 #[cfg_attr(
     feature = "cartesian",
     derive(cartesian::Cartesian),
-    cartesian(derive(Default))
+    cartesian(default)
 )]
 #[derive(Clone, Debug)]
 #[cfg_attr(
