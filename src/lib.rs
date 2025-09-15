@@ -19,15 +19,13 @@ pub struct Loader {
 }
 
 pub struct Runner<'a> {
+    workload: &'a Workload,
     acked: &'a Acknowledged,
-    record_count: usize,
     operation_chooser: generator::Discrete<Operation>,
-    insert_order: InsertOrder,
-    request_distribution: RequestDistribution,
     keys_total: u64,
     key_chooser: generator::Number,
-    field_count: usize,
     field_chooser: generator::Number,
+    scan_length_chooser: generator::Number,
 }
 
 impl Workload {
@@ -53,7 +51,7 @@ impl Workload {
         }
     }
 
-    pub fn runner<'a>(&self, acked: &'a Acknowledged) -> Runner<'a> {
+    pub fn runner<'a>(&'a self, acked: &'a Acknowledged) -> Runner<'a> {
         let operation_chooser = generator::Discrete::new(vec![
             (Operation::Read, self.read_proportion),
             (Operation::Update, self.update_proportion),
@@ -70,12 +68,9 @@ impl Workload {
         let key_count_total = self.record_count as u64 + key_count_new as u64;
 
         Runner {
+            workload: self,
             acked,
-            record_count: self.record_count,
             operation_chooser,
-            field_count: self.field_count,
-            insert_order: self.insert_order,
-            request_distribution: self.request_distribution,
             keys_total: key_count_total,
             key_chooser: match self.request_distribution {
                 RequestDistribution::Latest => generator::Number::zipfian(key_count_total),
@@ -83,6 +78,17 @@ impl Workload {
                 RequestDistribution::Zipfian => generator::Number::zipfian(key_count_total),
             },
             field_chooser: generator::Number::uniform(self.field_count as u64),
+            scan_length_chooser: {
+                let scan_length_count = (self.max_scan_length - self.min_scan_length + 1) as u64;
+                match self.scan_length_distribution {
+                    ScanLengthDistribution::Uniform => {
+                        generator::Number::uniform(scan_length_count)
+                    }
+                    ScanLengthDistribution::Zipfian => {
+                        generator::Number::zipfian(scan_length_count)
+                    }
+                }
+            },
         }
     }
 }
@@ -140,7 +146,13 @@ impl Runner<'_> {
 
     #[inline]
     pub fn field_count(&self) -> usize {
-        self.field_count
+        self.workload.field_count
+    }
+
+    #[inline]
+    pub fn next_scan_length<R: Rng>(&mut self, rng: &mut R) -> usize {
+        let offset = self.scan_length_chooser.next(rng);
+        self.workload.min_scan_length + offset as usize
     }
 
     #[inline]
@@ -155,9 +167,9 @@ impl Runner<'_> {
 
     #[inline]
     fn next_key_inner<R: Rng>(&mut self, rng: &mut R, window: u64) -> Key {
-        let max = self.record_count as u64 - 1 + self.acked.max() + window;
+        let max = self.workload.record_count as u64 - 1 + self.acked.max() + window;
         let key = loop {
-            let key = match self.request_distribution {
+            let key = match self.workload.request_distribution {
                 RequestDistribution::Uniform => self.key_chooser.next(rng),
                 RequestDistribution::Latest => match max.checked_sub(self.key_chooser.next(rng)) {
                     Some(key) => break key,
@@ -176,7 +188,7 @@ impl Runner<'_> {
             }
         };
 
-        Key::new(self.insert_order, key)
+        Key::new(self.workload.insert_order, key)
     }
 
     #[inline]
@@ -187,7 +199,10 @@ impl Runner<'_> {
     /// Only track newly inserted keys
     #[inline]
     pub fn acknowledge(&self, key: Key) {
-        let Some(index) = key.sequence().checked_sub(self.record_count as u64) else {
+        let Some(index) = key
+            .sequence()
+            .checked_sub(self.workload.record_count as u64)
+        else {
             return;
         };
         self.acked.acknowledge(index);
@@ -215,6 +230,14 @@ pub enum Operation {
 #[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum RequestDistribution {
     Latest,
+    Uniform,
+    Zipfian,
+}
+
+#[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
+pub enum ScanLengthDistribution {
     Uniform,
     Zipfian,
 }

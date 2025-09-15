@@ -1,5 +1,6 @@
 use crate::InsertOrder;
 use crate::RequestDistribution;
+use crate::ScanLengthDistribution;
 
 pub const A: Workload = Workload {
     read_proportion: 0.5,
@@ -52,6 +53,9 @@ pub struct Workload {
     pub read_modify_write_proportion: f32,
     pub delete_proportion: f32,
     pub request_distribution: RequestDistribution,
+    pub scan_length_distribution: ScanLengthDistribution,
+    pub min_scan_length: usize,
+    pub max_scan_length: usize,
 }
 
 impl Workload {
@@ -69,6 +73,9 @@ impl Workload {
             read_modify_write_proportion: 0.0,
             delete_proportion: 0.0,
             request_distribution: RequestDistribution::Uniform,
+            scan_length_distribution: ScanLengthDistribution::Uniform,
+            min_scan_length: 1,
+            max_scan_length: 1000,
         }
     }
 }
