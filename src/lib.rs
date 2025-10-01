@@ -156,18 +156,16 @@ impl Runner<'_> {
     }
 
     #[inline]
-    pub fn next_key_insert<R: Rng>(&mut self, rng: &mut R, window: u64) -> Key {
-        self.next_key_inner(rng, window)
+    pub fn next_key_insert(&mut self) -> Key {
+        Key::new(
+            self.workload.insert_order,
+            self.workload.record_count as u64 + self.acked.next_write(),
+        )
     }
 
     #[inline]
     pub fn next_key_read<R: Rng>(&mut self, rng: &mut R) -> Key {
-        self.next_key_inner(rng, 0)
-    }
-
-    #[inline]
-    fn next_key_inner<R: Rng>(&mut self, rng: &mut R, window: u64) -> Key {
-        let max = self.workload.record_count as u64 - 1 + self.acked.max() + window;
+        let max = self.workload.record_count as u64 + self.acked.next_read() - 1;
         let key = loop {
             let key = match self.workload.request_distribution {
                 RequestDistribution::Uniform => self.key_chooser.next(rng),
@@ -252,8 +250,8 @@ pub enum InsertOrder {
 
 #[repr(C)]
 pub struct Acknowledged {
+    next: AtomicU64,
     hint: AtomicU64,
-
     inner: [AtomicU64; 1 << 20],
 }
 
@@ -266,13 +264,18 @@ impl Default for Acknowledged {
 impl Acknowledged {
     pub const fn new() -> Self {
         Self {
+            next: AtomicU64::new(0),
             hint: AtomicU64::new(0),
             inner: [const { AtomicU64::new(0) }; 1 << 20],
         }
     }
 
+    fn next_write(&self) -> u64 {
+        self.next.fetch_add(1, Ordering::Relaxed)
+    }
+
     /// Max index (non-inclusive) such that all previous indices have been acknowledged.
-    fn max(&self) -> u64 {
+    fn next_read(&self) -> u64 {
         let (i, j) = self.next();
         i * 64 + j
     }
