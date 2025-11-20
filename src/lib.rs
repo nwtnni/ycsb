@@ -23,7 +23,7 @@ pub struct Runner<'a> {
     workload: &'a Workload,
     acked: &'a Acknowledged,
     operation_chooser: generator::Discrete<Operation>,
-    keys_total: u64,
+    record_count_total: u64,
     key_chooser: generator::Number,
     field_chooser: generator::Number,
     scan_length_chooser: generator::Number,
@@ -65,23 +65,24 @@ impl Workload {
             (Operation::Delete, self.delete_proportion),
         ]);
 
-        let key_count_new = self.insert_proportion * (self.operation_count as f32) * 2.0;
-        let key_count_total = self.record_count as u64 + key_count_new as u64;
+        // https://github.com/brianfrankcooper/YCSB/blob/9858c4dab6dc45991871c9f137bd011752d9c21b/core/src/main/java/site/ycsb/workloads/CoreWorkload.java#L517
+        let record_count_insert = self.insert_proportion * (self.operation_count as f32) * 2.0;
+        let record_count_total = self.record_count as u64 + record_count_insert as u64;
 
         Runner {
             workload: self,
             acked,
             operation_chooser,
-            keys_total: key_count_total,
+            record_count_total,
             key_chooser: match self.request_distribution {
                 RequestDistribution::Latest(zipfian) => {
-                    generator::Number::zipfian_latest(key_count_total, zipfian)
+                    generator::Number::zipfian_latest(record_count_total, zipfian)
                 }
-                RequestDistribution::Uniform => generator::Number::uniform(key_count_total),
+                RequestDistribution::Uniform => generator::Number::uniform(record_count_total),
                 RequestDistribution::Zipfian(zipfian) => {
                     // Not actually zipfian
                     // https://github.com/brianfrankcooper/YCSB/blob/9858c4dab6dc45991871c9f137bd011752d9c21b/core/src/main/java/site/ycsb/workloads/CoreWorkload.java#L519
-                    generator::Number::zipfian_scrambled(key_count_total, zipfian)
+                    generator::Number::zipfian_scrambled(record_count_total, zipfian)
                 }
             },
             field_chooser: generator::Number::uniform(self.field_count as u64),
@@ -176,7 +177,7 @@ impl Runner<'_> {
     pub fn next_key_read<R: Rng>(&mut self, rng: &mut R) -> Key {
         // Fast path: no insertion or deletion
         if self.workload.insert_proportion.is_zero() && self.workload.delete_proportion.is_zero() {
-            debug_assert_eq!(self.keys_total, self.workload.record_count as u64);
+            debug_assert_eq!(self.record_count_total, self.workload.record_count as u64);
             return Key::new(self.workload.insert_order, self.key_chooser.sample(rng));
         }
 
