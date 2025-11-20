@@ -5,8 +5,9 @@ use core::hash::Hasher as _;
 use core::sync::atomic::AtomicU64;
 use core::sync::atomic::Ordering;
 
-use generator::Generator as _;
 use rand::Rng;
+use rand_distr::Distribution as _;
+use rand_distr::num_traits::Zero as _;
 use rapidhash::RapidHasher;
 
 pub mod workload;
@@ -74,11 +75,13 @@ impl Workload {
             keys_total: key_count_total,
             key_chooser: match self.request_distribution {
                 RequestDistribution::Latest(zipfian) => {
-                    generator::Number::zipfian(key_count_total, zipfian)
+                    generator::Number::zipfian_latest(key_count_total, zipfian)
                 }
                 RequestDistribution::Uniform => generator::Number::uniform(key_count_total),
                 RequestDistribution::Zipfian(zipfian) => {
-                    generator::Number::zipfian(key_count_total, zipfian)
+                    // Not actually zipfian
+                    // https://github.com/brianfrankcooper/YCSB/blob/9858c4dab6dc45991871c9f137bd011752d9c21b/core/src/main/java/site/ycsb/workloads/CoreWorkload.java#L519
+                    generator::Number::zipfian_scrambled(key_count_total, zipfian)
                 }
             },
             field_chooser: generator::Number::uniform(self.field_count as u64),
@@ -89,6 +92,8 @@ impl Workload {
                         generator::Number::uniform(scan_length_count)
                     }
                     ScanLengthDistribution::Zipfian(zipfian) => {
+                        // Actually zipfian
+                        // https://github.com/brianfrankcooper/YCSB/blob/9858c4dab6dc45991871c9f137bd011752d9c21b/core/src/main/java/site/ycsb/workloads/CoreWorkload.java#L538
                         generator::Number::zipfian(scan_length_count, zipfian)
                     }
                 }
@@ -145,7 +150,7 @@ impl Key {
 impl Runner<'_> {
     #[inline]
     pub fn next_operation<R: Rng>(&mut self, rng: &mut R) -> Operation {
-        self.operation_chooser.next(rng)
+        self.operation_chooser.sample(rng)
     }
 
     #[inline]
@@ -155,7 +160,7 @@ impl Runner<'_> {
 
     #[inline]
     pub fn next_scan_length<R: Rng>(&mut self, rng: &mut R) -> usize {
-        let offset = self.scan_length_chooser.next(rng);
+        let offset = self.scan_length_chooser.sample(rng);
         self.workload.min_scan_length + offset as usize
     }
 
@@ -169,34 +174,25 @@ impl Runner<'_> {
 
     #[inline]
     pub fn next_key_read<R: Rng>(&mut self, rng: &mut R) -> Key {
-        let max = self.workload.record_count as u64 + self.acked.next_read() - 1;
-        let key = loop {
-            let key = match self.workload.request_distribution {
-                RequestDistribution::Uniform => self.key_chooser.next(rng),
-                RequestDistribution::Latest(_) => match max.checked_sub(self.key_chooser.next(rng))
-                {
-                    Some(key) => break key,
-                    None => continue,
-                },
-                RequestDistribution::Zipfian(_) => {
-                    let key = self.key_chooser.next(rng);
-                    let mut hasher = RapidHasher::default();
-                    key.hash(&mut hasher);
-                    hasher.finish() % self.keys_total
-                }
-            };
+        // Fast path: no insertion or deletion
+        if self.workload.insert_proportion.is_zero() && self.workload.delete_proportion.is_zero() {
+            debug_assert_eq!(self.keys_total, self.workload.record_count as u64);
+            return Key::new(self.workload.insert_order, self.key_chooser.sample(rng));
+        }
 
-            if key <= max {
-                break key;
-            }
-        };
+        // https://github.com/brianfrankcooper/YCSB/blob/9858c4dab6dc45991871c9f137bd011752d9c21b/core/src/main/java/site/ycsb/workloads/CoreWorkload.java#L708-L720
+        let bound = self.workload.record_count as u64 + self.acked.next_read();
+        let mut key = self.key_chooser.sample(rng);
+        while key >= bound {
+            key = self.key_chooser.sample(rng);
+        }
 
         Key::new(self.workload.insert_order, key)
     }
 
     #[inline]
     pub fn next_field<R: Rng>(&mut self, rng: &mut R) -> u64 {
-        self.field_chooser.next(rng)
+        self.field_chooser.sample(rng)
     }
 
     /// Only track newly inserted keys

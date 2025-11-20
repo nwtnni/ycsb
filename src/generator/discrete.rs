@@ -1,9 +1,7 @@
-use rand::distr::Distribution;
+use rand::Rng;
 use rand::distr::weighted::WeightedIndex;
 
-use super::Generator;
-
-pub struct Discrete<T> {
+pub(crate) struct Discrete<T> {
     weights: WeightedIndex<f32>,
     values: Vec<T>,
 }
@@ -17,14 +15,12 @@ impl<T> Discrete<T> {
     }
 }
 
-impl<T> Generator for Discrete<T>
+impl<T> rand::distr::Distribution<T> for Discrete<T>
 where
     T: Copy,
 {
-    type Item = T;
-
     #[inline]
-    fn next<R: rand::Rng>(&mut self, rng: &mut R) -> Self::Item {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> T {
         let index = self.weights.sample(rng);
         self.values[index]
     }
