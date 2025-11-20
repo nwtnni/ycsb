@@ -249,9 +249,13 @@ pub enum InsertOrder {
     Hashed,
 }
 
+// Cache-line align to reduce false sharing between allocating and acknowledging keys.
+#[repr(align(64))]
+struct Next(AtomicU64);
+
 #[repr(C)]
 pub struct Acknowledged {
-    next: AtomicU64,
+    next: Next,
     hint: AtomicU64,
     inner: [AtomicU64; 1 << 20],
 }
@@ -265,14 +269,14 @@ impl Default for Acknowledged {
 impl Acknowledged {
     pub const fn new() -> Self {
         Self {
-            next: AtomicU64::new(0),
+            next: Next(AtomicU64::new(0)),
             hint: AtomicU64::new(0),
             inner: [const { AtomicU64::new(0) }; 1 << 20],
         }
     }
 
     fn next_write(&self) -> u64 {
-        self.next.fetch_add(1, Ordering::Relaxed)
+        self.next.0.fetch_add(1, Ordering::Relaxed)
     }
 
     /// Max index (non-inclusive) such that all previous indices have been acknowledged.
