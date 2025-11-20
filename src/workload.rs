@@ -2,29 +2,47 @@ use crate::InsertOrder;
 use crate::RequestDistribution;
 use crate::ScanLengthDistribution;
 
+/// https://github.com/brianfrankcooper/YCSB/blob/9858c4dab6dc45991871c9f137bd011752d9c21b/workloads/workloada
 pub const A: Workload = Workload {
     read_proportion: 0.5,
     update_proportion: 0.5,
+    request_distribution: RequestDistribution::Zipfian(0.99),
     ..Workload::new()
 };
 
+/// https://github.com/brianfrankcooper/YCSB/blob/9858c4dab6dc45991871c9f137bd011752d9c21b/workloads/workloadb
 pub const B: Workload = Workload {
     read_proportion: 0.95,
     update_proportion: 0.05,
+    request_distribution: RequestDistribution::Zipfian(0.99),
     ..Workload::new()
 };
 
+/// https://github.com/brianfrankcooper/YCSB/blob/9858c4dab6dc45991871c9f137bd011752d9c21b/workloads/workloadc
 pub const C: Workload = Workload {
     read_proportion: 1.0,
     update_proportion: 0.0,
+    request_distribution: RequestDistribution::Zipfian(0.99),
     ..Workload::new()
 };
 
+/// https://github.com/brianfrankcooper/YCSB/blob/9858c4dab6dc45991871c9f137bd011752d9c21b/workloads/workloadd
 pub const D: Workload = Workload {
     read_proportion: 0.95,
     update_proportion: 0.0,
     insert_proportion: 0.05,
-    request_distribution: RequestDistribution::Latest,
+    request_distribution: RequestDistribution::Latest(0.99),
+    ..Workload::new()
+};
+
+/// https://github.com/brianfrankcooper/YCSB/blob/9858c4dab6dc45991871c9f137bd011752d9c21b/workloads/workloadd
+pub const E: Workload = Workload {
+    read_proportion: 0.0,
+    update_proportion: 0.0,
+    scan_proportion: 0.95,
+    insert_proportion: 0.05,
+    request_distribution: RequestDistribution::Zipfian(0.99),
+    max_scan_length: 100,
     ..Workload::new()
 };
 
@@ -60,6 +78,7 @@ pub struct Workload {
 
 impl Workload {
     const fn new() -> Self {
+        // https://github.com/brianfrankcooper/YCSB/blob/9858c4dab6dc45991871c9f137bd011752d9c21b/core/src/main/java/site/ycsb/workloads/CoreWorkload.java#L28-L357
         Self {
             insert_order: InsertOrder::Hashed,
             field_count: 10,

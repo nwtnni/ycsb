@@ -73,9 +73,13 @@ impl Workload {
             operation_chooser,
             keys_total: key_count_total,
             key_chooser: match self.request_distribution {
-                RequestDistribution::Latest => generator::Number::zipfian(key_count_total),
+                RequestDistribution::Latest(zipfian) => {
+                    generator::Number::zipfian(key_count_total, zipfian)
+                }
                 RequestDistribution::Uniform => generator::Number::uniform(key_count_total),
-                RequestDistribution::Zipfian => generator::Number::zipfian(key_count_total),
+                RequestDistribution::Zipfian(zipfian) => {
+                    generator::Number::zipfian(key_count_total, zipfian)
+                }
             },
             field_chooser: generator::Number::uniform(self.field_count as u64),
             scan_length_chooser: {
@@ -84,8 +88,8 @@ impl Workload {
                     ScanLengthDistribution::Uniform => {
                         generator::Number::uniform(scan_length_count)
                     }
-                    ScanLengthDistribution::Zipfian => {
-                        generator::Number::zipfian(scan_length_count)
+                    ScanLengthDistribution::Zipfian(zipfian) => {
+                        generator::Number::zipfian(scan_length_count, zipfian)
                     }
                 }
             },
@@ -169,11 +173,12 @@ impl Runner<'_> {
         let key = loop {
             let key = match self.workload.request_distribution {
                 RequestDistribution::Uniform => self.key_chooser.next(rng),
-                RequestDistribution::Latest => match max.checked_sub(self.key_chooser.next(rng)) {
+                RequestDistribution::Latest(_) => match max.checked_sub(self.key_chooser.next(rng))
+                {
                     Some(key) => break key,
                     None => continue,
                 },
-                RequestDistribution::Zipfian => {
+                RequestDistribution::Zipfian(_) => {
                     let key = self.key_chooser.next(rng);
                     let mut hasher = RapidHasher::default();
                     key.hash(&mut hasher);
@@ -227,9 +232,9 @@ pub enum Operation {
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum RequestDistribution {
-    Latest,
+    Latest(f32),
     Uniform,
-    Zipfian,
+    Zipfian(f32),
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -237,7 +242,7 @@ pub enum RequestDistribution {
 #[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum ScanLengthDistribution {
     Uniform,
-    Zipfian,
+    Zipfian(f32),
 }
 
 #[derive(Copy, Clone, Debug)]

@@ -6,13 +6,7 @@ use crate::generator::Generator;
 pub enum Number {
     Constant(u64),
     Uniform(rand::distr::Uniform<u64>),
-    Zipfian {
-        count: f64,
-        cutoff_1: f64,
-        alpha: f64,
-        eta: f64,
-        zeta: f64,
-    },
+    Zipfian(rand_distr::Zipf<f32>),
 }
 
 impl Number {
@@ -27,27 +21,10 @@ impl Number {
     }
 
     // https://github.com/brianfrankcooper/YCSB/blob/9858c4dab6dc45991871c9f137bd011752d9c21b/core/src/main/java/site/ycsb/generator/ZipfianGenerator.java#L132-L148
-    pub fn zipfian(count: u64) -> Self {
-        const ZIPFIAN_CONSTANT: f64 = 0.99;
-        let theta = ZIPFIAN_CONSTANT;
-        let alpha = 1.0 / (1.0 - theta);
-
-        let zeta_n = zeta_static(count, theta);
-        let zeta_2 = zeta_static(2, theta);
-        let eta = (1.0 - (2.0 / count as f64).powf(1.0 - theta)) / (1.0 - zeta_2 / zeta_n);
-
-        Self::Zipfian {
-            count: count as f64,
-            cutoff_1: 1.0 + 0.5f64.powf(theta),
-            alpha,
-            eta,
-            zeta: zeta_n,
-        }
+    // https://en.wikipedia.org/wiki/Zipf%27s_law
+    pub fn zipfian(n: u64, s: f32) -> Self {
+        Self::Zipfian(rand_distr::Zipf::new(n as f32, s).expect("Invalid zipf parameters"))
     }
-}
-
-fn zeta_static(n: u64, theta: f64) -> f64 {
-    (1..=n).map(|i| i as f64).map(|i| 1.0 / i.powf(theta)).sum()
 }
 
 impl Generator for Number {
@@ -59,25 +36,8 @@ impl Generator for Number {
             Number::Constant(value) => *value,
             Number::Uniform(uniform) => uniform.sample(rng),
             // https://github.com/brianfrankcooper/YCSB/blob/9858c4dab6dc45991871c9f137bd011752d9c21b/core/src/main/java/site/ycsb/generator/ZipfianGenerator.java#L250-L263
-            Number::Zipfian {
-                count,
-                cutoff_1,
-                alpha,
-                eta,
-                zeta,
-            } => {
-                let u = rng.random::<f64>();
-                let uz = u * *zeta;
-                if uz < 1.0 {
-                    return 0;
-                }
-
-                if uz < *cutoff_1 {
-                    return 1;
-                }
-
-                (*count * (*eta * (u - 1.0) + 1.0).powf(*alpha)) as u64
-            }
+            // Map from range 1..=n to 0..n
+            Number::Zipfian(zipfian) => zipfian.sample(rng).floor() as u64 - 1,
         }
     }
 }
