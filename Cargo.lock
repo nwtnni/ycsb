@@ -17,7 +17,7 @@ checksum = "5c8214115b7bf84099f1309324e63141d4c5d7cc26862f97a0a857dbefe165bd"
 [[package]]
 name = "cartesian"
 version = "0.1.0"
-source = "git+https://github.com/nwtnni/cartesian.git#947d6d45e8e0c694f034c40c7ef95cc097b204e3"
+source = "git+https://github.com/nwtnni/cartesian.git#da21d3121f6fa22200c3d9da52a2177054f30ed8"
 dependencies = [
  "cartesian-derive",
 ]
@@ -25,7 +25,7 @@ dependencies = [
 [[package]]
 name = "cartesian-derive"
 version = "0.1.0"
-source = "git+https://github.com/nwtnni/cartesian.git#947d6d45e8e0c694f034c40c7ef95cc097b204e3"
+source = "git+https://github.com/nwtnni/cartesian.git#da21d3121f6fa22200c3d9da52a2177054f30ed8"
 dependencies = [
  "proc-macro-error",
  "proc-macro2",
