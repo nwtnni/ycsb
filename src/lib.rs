@@ -256,16 +256,18 @@ pub enum InsertOrder {
     Hashed,
 }
 
-// Cache-line align to reduce false sharing between allocating and acknowledging keys.
-#[repr(align(64))]
-struct Next(AtomicU64);
+// Align to reduce false sharing
+#[repr(align(128))]
+struct Pad(AtomicU64);
 
-#[repr(C)]
+#[repr(align(4096))]
 pub struct Acknowledged {
-    next: Next,
-    hint: AtomicU64,
-    inner: [AtomicU64; 1 << 20],
+    next: Pad,
+    hint: Pad,
+    inner: [AtomicU64; (1 << 20) - 32],
 }
+
+const _: () = assert!(core::mem::size_of::<Acknowledged>() % 4096 == 0);
 
 impl Default for Acknowledged {
     fn default() -> Self {
@@ -276,9 +278,9 @@ impl Default for Acknowledged {
 impl Acknowledged {
     pub const fn new() -> Self {
         Self {
-            next: Next(AtomicU64::new(0)),
-            hint: AtomicU64::new(0),
-            inner: [const { AtomicU64::new(0) }; 1 << 20],
+            next: Pad(AtomicU64::new(0)),
+            hint: Pad(AtomicU64::new(0)),
+            inner: [const { AtomicU64::new(0) }; (1 << 20) - 32],
         }
     }
 
@@ -297,15 +299,19 @@ impl Acknowledged {
         let j = index % 64;
 
         self.inner[i as usize].fetch_or(1 << j, Ordering::Relaxed);
-        let (hint, _) = self.next();
-        self.hint.fetch_max(hint, Ordering::Relaxed);
+
+        // Update hint every two cache lines
+        if index % (64 * 16) == 0 {
+            let (hint, _) = self.next();
+            self.hint.0.fetch_max(hint, Ordering::Relaxed);
+        }
     }
 
     fn next(&self) -> (u64, u64) {
         self.inner
             .iter()
             .enumerate()
-            .skip(self.hint.load(Ordering::Relaxed) as usize)
+            .skip(self.hint.0.load(Ordering::Relaxed) as usize)
             .find_map(
                 |(i, row)| match row.load(Ordering::Relaxed).trailing_ones() {
                     64 => None,
