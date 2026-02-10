@@ -11,7 +11,7 @@ pub(crate) enum Number {
     Zipfian(Zipfian0),
     /// https://github.com/brianfrankcooper/YCSB/blob/9858c4dab6dc45991871c9f137bd011752d9c21b/core/src/main/java/site/ycsb/generator/ScrambledZipfianGenerator.java
     ZipfianScrambled(ZipfianScrambled),
-    ZipfianLatest(ZipfianLatest),
+    ZipfianLatest(Zipfian1),
 }
 
 impl Number {
@@ -48,7 +48,6 @@ impl Number {
     pub fn zipfian_latest(n: u64, s: f32) -> Self {
         rand_distr::Zipf::new(n as f32, s)
             .map(Zipfian1)
-            .map(|zipfian| ZipfianLatest { n, zipfian })
             .map(Self::ZipfianLatest)
             .expect("Invalid zipf parameters for latest")
     }
@@ -63,19 +62,6 @@ impl rand::distr::Distribution<u64> for Number {
             Number::ZipfianScrambled(scrambled) => scrambled.sample(rng),
             Number::ZipfianLatest(latest) => latest.sample(rng),
         }
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-pub(crate) struct ZipfianLatest {
-    n: u64,
-    zipfian: Zipfian1,
-}
-
-impl rand::distr::Distribution<u64> for ZipfianLatest {
-    #[inline]
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> u64 {
-        self.n - self.zipfian.sample(rng)
     }
 }
 

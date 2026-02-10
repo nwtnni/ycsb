@@ -183,10 +183,16 @@ impl Runner<'_> {
 
         // https://github.com/brianfrankcooper/YCSB/blob/9858c4dab6dc45991871c9f137bd011752d9c21b/core/src/main/java/site/ycsb/workloads/CoreWorkload.java#L708-L720
         let bound = self.workload.record_count as u64 + self.acked.next_read();
-        let mut key = self.key_chooser.sample(rng);
-        while key >= bound {
-            key = self.key_chooser.sample(rng);
-        }
+        let key = loop {
+            let key = match &mut self.key_chooser {
+                generator::Number::ZipfianLatest(zipfian) => bound - zipfian.sample(rng),
+                key_chooser => key_chooser.sample(rng),
+            };
+
+            if key < bound {
+                break key;
+            }
+        };
 
         Key::new(self.workload.insert_order, key)
     }
