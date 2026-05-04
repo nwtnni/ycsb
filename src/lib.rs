@@ -20,11 +20,11 @@ pub struct Loader {
 
 pub struct Runner<'a> {
     workload: &'a Workload,
-    acked: &'a Acknowledged,
     operation_chooser: generator::Discrete<Operation>,
     key_chooser: generator::Number,
     field_chooser: generator::Number,
     scan_length_chooser: generator::Number,
+    next: Pad,
 }
 
 impl Workload {
@@ -50,7 +50,7 @@ impl Workload {
         }
     }
 
-    pub fn runner<'a>(&'a self, acked: &'a Acknowledged) -> Runner<'a> {
+    pub fn runner<'a>(&'a self) -> Runner<'a> {
         let operation_chooser = generator::Discrete::new(vec![
             (Operation::Read, self.read_proportion),
             (Operation::Update, self.update_proportion),
@@ -69,7 +69,6 @@ impl Workload {
 
         Runner {
             workload: self,
-            acked,
             operation_chooser,
             key_chooser: match self.request_distribution {
                 RequestDistribution::Latest(zipfian) => {
@@ -96,6 +95,7 @@ impl Workload {
                     }
                 }
             },
+            next: Pad::default(),
         }
     }
 }
@@ -166,14 +166,14 @@ impl Runner<'_> {
     pub fn next_key_insert(&mut self) -> Key {
         Key::new(
             self.workload.insert_order,
-            self.workload.record_count as u64 + self.acked.next_write(),
+            self.workload.record_count as u64 + self.next.0.fetch_add(1, Ordering::Relaxed),
         )
     }
 
     #[inline]
     pub fn next_key_read<R: Rng>(&mut self, rng: &mut R) -> Key {
         // https://github.com/brianfrankcooper/YCSB/blob/9858c4dab6dc45991871c9f137bd011752d9c21b/core/src/main/java/site/ycsb/workloads/CoreWorkload.java#L708-L720
-        let bound = self.workload.record_count as u64 + self.acked.next_read();
+        let bound = self.workload.record_count as u64 + self.next.0.load(Ordering::Relaxed);
 
         let key = loop {
             let key = match &mut self.key_chooser {
@@ -192,18 +192,6 @@ impl Runner<'_> {
     #[inline]
     pub fn next_field<R: Rng>(&mut self, rng: &mut R) -> u64 {
         self.field_chooser.sample(rng)
-    }
-
-    /// Only track newly inserted keys
-    #[inline]
-    pub fn acknowledge(&self, key: Key) {
-        let Some(index) = key
-            .sequence()
-            .checked_sub(self.workload.record_count as u64)
-        else {
-            return;
-        };
-        self.acked.acknowledge(index);
     }
 
     // FIXME
@@ -250,66 +238,5 @@ pub enum InsertOrder {
 
 // Align to reduce false sharing
 #[repr(align(128))]
+#[derive(Default)]
 struct Pad(AtomicU64);
-
-#[repr(align(4096))]
-pub struct Acknowledged {
-    next: Pad,
-    hint: Pad,
-    inner: [AtomicU64; (1 << 20) - 32],
-}
-
-const _: () = assert!(core::mem::size_of::<Acknowledged>() % 4096 == 0);
-
-impl Default for Acknowledged {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Acknowledged {
-    pub const fn new() -> Self {
-        Self {
-            next: Pad(AtomicU64::new(0)),
-            hint: Pad(AtomicU64::new(0)),
-            inner: [const { AtomicU64::new(0) }; (1 << 20) - 32],
-        }
-    }
-
-    fn next_write(&self) -> u64 {
-        self.next.0.fetch_add(1, Ordering::Relaxed)
-    }
-
-    /// Max index (non-inclusive) such that all previous indices have been acknowledged.
-    fn next_read(&self) -> u64 {
-        let (i, j) = self.next();
-        i * 64 + j
-    }
-
-    fn acknowledge(&self, index: u64) {
-        let i = index / 64;
-        let j = index % 64;
-
-        self.inner[i as usize].fetch_or(1 << j, Ordering::Relaxed);
-
-        // Update hint every two cache lines
-        if index % (64 * 16) == 0 {
-            let (hint, _) = self.next();
-            self.hint.0.fetch_max(hint, Ordering::Relaxed);
-        }
-    }
-
-    fn next(&self) -> (u64, u64) {
-        self.inner
-            .iter()
-            .enumerate()
-            .skip(self.hint.0.load(Ordering::Relaxed) as usize)
-            .find_map(
-                |(i, row)| match row.load(Ordering::Relaxed).trailing_ones() {
-                    64 => None,
-                    j => Some((i as u64, j as u64)),
-                },
-            )
-            .expect("Full acknowledgement array")
-    }
-}
