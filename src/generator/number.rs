@@ -2,10 +2,10 @@ use core::hash::Hash as _;
 use core::hash::Hasher as _;
 
 use rand::Rng;
-use rapidhash::RapidHasher;
+use rapidhash::fast::RapidHasher;
 
 #[derive(Debug)]
-pub(crate) enum Number {
+pub enum Number {
     Constant(u64),
     Uniform(rand::distr::Uniform<u64>),
     Zipfian(Zipfian0),
@@ -16,7 +16,6 @@ pub(crate) enum Number {
 
 impl Number {
     #[inline]
-    #[expect(dead_code)]
     pub fn constant(value: u64) -> Self {
         Self::Constant(value)
     }
@@ -59,7 +58,7 @@ impl rand::distr::Distribution<u64> for Number {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub(crate) struct ZipfianScrambled {
+pub struct ZipfianScrambled {
     n: u64,
     zipfian: Zipfian0,
 }
@@ -76,7 +75,7 @@ impl rand::distr::Distribution<u64> for ZipfianScrambled {
 
 #[repr(transparent)]
 #[derive(Copy, Clone, Debug)]
-pub(crate) struct Zipfian1(Zipfian0);
+pub struct Zipfian1(Zipfian0);
 
 impl rand::distr::Distribution<u64> for Zipfian1 {
     #[inline]
@@ -86,7 +85,7 @@ impl rand::distr::Distribution<u64> for Zipfian1 {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub(crate) struct Zipfian0 {
+pub struct Zipfian0 {
     n: f32,
     cutoff_1: f32,
     alpha: f32,

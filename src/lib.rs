@@ -7,7 +7,7 @@ use core::sync::atomic::Ordering;
 
 use rand::Rng;
 use rand::distr::Distribution as _;
-use rapidhash::RapidHasher;
+use rapidhash::fast::RapidHasher;
 
 pub mod workload;
 pub use workload::Workload;
