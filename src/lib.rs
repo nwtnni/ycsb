@@ -72,13 +72,13 @@ impl Workload {
             operation_chooser,
             key_chooser: match self.request_distribution {
                 RequestDistribution::Latest(zipfian) => {
-                    generator::Number::zipfian_latest(record_count_total, zipfian)
+                    generator::Number::zipfian_1(record_count_total, zipfian)
                 }
                 RequestDistribution::Uniform => generator::Number::uniform(record_count_total),
                 RequestDistribution::Zipfian(zipfian) => {
                     // Not actually zipfian
                     // https://github.com/brianfrankcooper/YCSB/blob/9858c4dab6dc45991871c9f137bd011752d9c21b/core/src/main/java/site/ycsb/workloads/CoreWorkload.java#L519
-                    generator::Number::zipfian_scrambled(record_count_total, zipfian)
+                    generator::Number::zipfian_0_scrambled(record_count_total, zipfian)
                 }
             },
             field_chooser: generator::Number::uniform(self.field_count as u64),
@@ -91,7 +91,7 @@ impl Workload {
                     ScanLengthDistribution::Zipfian(zipfian) => {
                         // Actually zipfian
                         // https://github.com/brianfrankcooper/YCSB/blob/9858c4dab6dc45991871c9f137bd011752d9c21b/core/src/main/java/site/ycsb/workloads/CoreWorkload.java#L538
-                        generator::Number::zipfian(scan_length_count, zipfian)
+                        generator::Number::zipfian_0(scan_length_count, zipfian)
                     }
                 }
             },
@@ -177,7 +177,7 @@ impl Runner<'_> {
 
         let key = loop {
             let key = match &mut self.key_chooser {
-                generator::Number::ZipfianLatest(zipfian) => bound - zipfian.sample(rng),
+                generator::Number::Zipfian1(zipfian) => bound - zipfian.sample(rng),
                 key_chooser => key_chooser.sample(rng),
             };
 

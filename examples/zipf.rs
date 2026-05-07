@@ -37,7 +37,7 @@ fn main() {
     let mut stdout = BufWriter::new(io::stdout().lock());
 
     for s in cli.s {
-        let distribution = generator::Number::zipfian(cli.n, s);
+        let distribution = generator::Number::zipfian_0(cli.n, s);
         let prefix = format!("{s},");
         for _ in 0..cli.count {
             let sample = distribution.sample(&mut rng);
