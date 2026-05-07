@@ -38,10 +38,11 @@ fn main() {
 
     for s in cli.s {
         let distribution = generator::Number::zipfian_0(cli.n, s);
-        let prefix = format!("{s},");
+        write!(&mut stdout, "{},{}", cli.n, s).unwrap();
         for _ in 0..cli.count {
             let sample = distribution.sample(&mut rng);
-            writeln!(&mut stdout, "{prefix}{sample}").unwrap();
+            write!(&mut stdout, ",{sample}").unwrap();
         }
+        writeln!(&mut stdout).unwrap();
     }
 }
